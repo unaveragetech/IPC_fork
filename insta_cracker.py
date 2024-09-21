@@ -1,9 +1,34 @@
 #!/bin/python
-from splinter import Browser
-import time
+import importlib
+import subprocess
 import sys
+import time
 import logging
 from tqdm import tqdm
+
+# List of required packages
+required_packages = ['splinter', 'tqdm']
+
+# Function to install missing packages
+def install(package):
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', package])
+
+# Check for required packages and install if missing
+for package in required_packages:
+    try:
+        importlib.import_module(package)
+    except ImportError:
+        print(f"Installing missing package: {package}")
+        install(package)
+
+# Restart the script if any packages were installed
+if any(not importlib.util.find_spec(package) for package in required_packages):
+    print("Some packages were missing and have been installed. Restarting the script...")
+    subprocess.Popen([sys.executable] + sys.argv)
+    sys.exit()
+
+# Now import the necessary modules
+from splinter import Browser
 
 # Configure logging
 logging.basicConfig(filename='login_attempts.log', level=logging.INFO, format='%(asctime)s - %(message)s')
